@@ -3,6 +3,7 @@ use std::fs::File;
 use std::error::Error;
 use std::fs;
 use std::fmt;
+use std::io::{Seek, Read, SeekFrom};
 
 #[derive(Debug)]
 pub enum FsError {
@@ -75,9 +76,9 @@ impl MainFile {
         self.file.is_some()
     }
 
-    /// Gets the backing file, if existant.
-    pub fn file(&self) -> &Option<File> {
-        &self.file
+    /// Gets the backing file, if existant. Returns a new instance with a fresh seek pointer.
+    pub fn file(&mut self) -> Option<&mut File> {
+        self.file.as_mut()
     }
 
     /// Calculates the number of data blocks in the mainfile (if existant). This is done by
@@ -88,5 +89,24 @@ impl MainFile {
             Some(ref x) => Some((x.metadata().unwrap().len() + 519u64) / 520u64),
             None => None
         }
+    }
+
+    /// Reads a block of data, specified by the block id. The data is read at 520 * block_id
+    /// and is exactly 520 bytes big. It is not guaranteed all 520 bytes are occupied if the
+    /// block is the last one, thus possible to be trimmed.
+    pub fn read_block(&mut self, block: u32) -> Option<[u8; 520]> {
+        // Do we have a valid file?
+        if self.file.is_none() {
+            return None;
+        }
+
+        let mut data: [u8; 520] = [0; 520];
+        let file = self.file().unwrap();
+
+        // Seek to the right position and read the data
+        file.seek(SeekFrom::Start(block as u64 * 520u64));
+        file.read(&mut data);
+
+        return Some(data);
     }
 }
