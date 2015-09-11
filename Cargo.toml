@@ -1,0 +1,5 @@
+[package]
+name = "scapefs"
+description = "Rust RuneScape filesystem library"
+version = "0.1.0"
+authors = ["Bart Pelle <bart@bartpelle.com>"]
