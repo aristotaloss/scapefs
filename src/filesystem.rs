@@ -29,44 +29,44 @@ impl fmt::Display for FsError {
 
 #[derive(Debug)]
 pub struct FileSystem {
-	path: PathBuf,
-	mainfile: MainFile
+    path: PathBuf,
+    mainfile: MainFile
 }
 
 #[derive(Debug)]
 pub struct MainFile {
-	file: Option<File>
+    file: Option<File>
 }
 
 impl FileSystem {
-	pub fn new(string: &'static str) -> Result<FileSystem, FsError> {
-		// Declare some nice variables!!!
-		let path = PathBuf::from(string);
-		let metadata = fs::metadata(&path);
+    pub fn new(string: &'static str) -> Result<FileSystem, FsError> {
+        // Declare some nice variables!!!
+        let path = PathBuf::from(string);
+        let metadata = fs::metadata(&path);
 
-		// Make sure the folder exists
-		if !metadata.is_ok() {
-			return Err(FsError::FileNotFound);
-		}
+        // Make sure the folder exists
+        if !metadata.is_ok() {
+            return Err(FsError::FileNotFound);
+        }
 
         // Make sure it is a directory
         if !metadata.unwrap().is_dir() {
             return Err(FsError::InvalidDirectory);
         }
 
-		// Create mainfile path
+        // Create mainfile path
         let mut mainfile_path = PathBuf::from(string);
         mainfile_path.push("main_file_cache.dat2");
 
         let file = File::open(mainfile_path).ok();
-		Ok(FileSystem{path: path, mainfile: MainFile{file: file}})
-	}
+        Ok(FileSystem{path: path, mainfile: MainFile{file: file}})
+    }
 
     /// Gets the mainfile, that is, the main_file_cache.dat2 entry in the folder
     /// that holds the actual binary data of the filesystem entries.
     pub fn mainfile(&self) -> &MainFile {
-		&self.mainfile
-	}
+        &self.mainfile
+    }
 }
 
 impl MainFile {
@@ -76,6 +76,6 @@ impl MainFile {
     }
 
     pub fn file(&self) -> &Option<File> {
-		&self.file
-	}
+        &self.file
+    }
 }
