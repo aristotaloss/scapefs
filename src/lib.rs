@@ -7,6 +7,6 @@ fn it_works() {
     let fs = FileSystem::new("fstest").unwrap();
     println!("FileSystem: {:?}", fs);
     let mf = fs.mainfile();
-	assert!(mf.exists());
-	assert!(mf.num_blocks().unwrap() == 88216);
+    assert!(mf.exists());
+    assert!(mf.num_blocks().unwrap() == 88216);
 }

@@ -75,18 +75,18 @@ impl MainFile {
         self.file.is_some()
     }
 
-	/// Gets the backing file, if existant.
+    /// Gets the backing file, if existant.
     pub fn file(&self) -> &Option<File> {
         &self.file
     }
 
-	/// Calculates the number of data blocks in the mainfile (if existant). This is done by
-	/// taking the file size and dividing that by 520 (rouding up), because each block
-	/// takes up 520 bytes of data.
-	pub fn num_blocks(&self) -> Option<u64> {
-		match self.file {
-			Some(ref x) => Some((x.metadata().unwrap().len() + 519u64) / 520u64),
-			None => None
-		}
-	}
+    /// Calculates the number of data blocks in the mainfile (if existant). This is done by
+    /// taking the file size and dividing that by 520 (rouding up), because each block
+    /// takes up 520 bytes of data.
+    pub fn num_blocks(&self) -> Option<u64> {
+        match self.file {
+            Some(ref x) => Some((x.metadata().unwrap().len() + 519u64) / 520u64),
+            None => None
+        }
+    }
 }
