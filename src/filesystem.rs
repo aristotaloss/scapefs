@@ -39,6 +39,13 @@ pub struct MainFile {
     file: Option<File>
 }
 
+#[derive(Debug)]
+pub struct IndexEntry {
+    id: u32,
+    size: u32,
+    offset: u64
+}
+
 impl FileSystem {
     pub fn new(string: &'static str) -> Result<FileSystem, FsError> {
         // Declare some nice variables!!!

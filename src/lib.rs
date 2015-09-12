@@ -15,6 +15,7 @@ fn it_works() {
 
 fn print_vec(v: [u8; 520]) {
     for i in v.iter() {
-        println!("{0:x}", *i)
+        print!("{0:X} ", *i);
     }
+    println!("");
 }
