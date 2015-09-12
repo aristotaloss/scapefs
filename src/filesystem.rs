@@ -66,7 +66,7 @@ impl IndexEntry {
 }
 
 impl IndexFile {
-    pub fn num_entries(&self) -> u64 {
+    pub fn last_entry(&self) -> u64 {
          self.file.metadata().unwrap().len() / 6u64
     }
 }
@@ -111,7 +111,7 @@ impl FileSystem {
         // Create the filesystem object and return it
         let file = File::open(mainfile_path).ok();
         let mainfile = MainFile{file: file};
-        
+
         Ok(FileSystem {path: path, mainfile: mainfile, indices: indices})
     }
 
@@ -119,6 +119,12 @@ impl FileSystem {
     /// that holds the actual binary data of the filesystem entries.
     pub fn mainfile(&mut self) -> &mut MainFile {
         &mut self.mainfile
+    }
+
+    /// Gets an index with a specific id if it exists. The index can only exist if the file exists
+    /// on the file system.
+    pub fn index(&mut self, index: &mut u32) -> Option<&IndexFile> {
+        self.indices.get(index)
     }
 }
 
