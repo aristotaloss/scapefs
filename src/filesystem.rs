@@ -65,8 +65,8 @@ impl FileSystem {
 
     /// Gets the mainfile, that is, the main_file_cache.dat2 entry in the folder
     /// that holds the actual binary data of the filesystem entries.
-    pub fn mainfile(&self) -> &MainFile {
-        &self.mainfile
+    pub fn mainfile(&mut self) -> &mut MainFile {
+        &mut self.mainfile
     }
 }
 
