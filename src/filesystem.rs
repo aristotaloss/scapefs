@@ -46,6 +46,18 @@ pub struct IndexEntry {
     offset: u64
 }
 
+impl IndexEntry {
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+    pub fn offset(&self) -> u64 {
+        self.offset
+    }
+}
+
 impl FileSystem {
     pub fn new(string: &'static str) -> Result<FileSystem, FsError> {
         // Declare some nice variables!!!
