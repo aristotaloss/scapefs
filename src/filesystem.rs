@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fs;
 use std::fmt;
 use std::io::{Seek, Read, SeekFrom};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum FsError {
@@ -31,12 +32,18 @@ impl fmt::Display for FsError {
 #[derive(Debug)]
 pub struct FileSystem {
     path: PathBuf,
-    mainfile: MainFile
+    mainfile: MainFile,
+    indices: HashMap<u32, IndexFile>
 }
 
 #[derive(Debug)]
 pub struct MainFile {
     file: Option<File>
+}
+
+#[derive(Debug)]
+pub struct IndexFile {
+    file: File
 }
 
 #[derive(Debug)]
@@ -55,6 +62,12 @@ impl IndexEntry {
     }
     pub fn offset(&self) -> u64 {
         self.offset
+    }
+}
+
+impl IndexFile {
+    pub fn num_entries(&self) -> u64 {
+         self.file.metadata().unwrap().len() / 6u64
     }
 }
 
@@ -78,8 +91,28 @@ impl FileSystem {
         let mut mainfile_path = PathBuf::from(string);
         mainfile_path.push("main_file_cache.dat2");
 
+        // Find all valid index files
+        let mut indices: HashMap<u32, IndexFile> = HashMap::new();
+        let entries = fs::read_dir(&path).unwrap();
+        for entry in entries {
+            let e = entry.unwrap();
+            let fname = e.file_name().into_string().unwrap();
+
+            // Is this an index?
+            if fname.starts_with("main_file_cache.idx") {
+                // Parse the index id into an integer
+                let idx = fname[19..].parse::<u32>().unwrap();
+
+                // Add the index file to our map with indices
+                indices.insert(idx, IndexFile {file: File::open(e.path()).unwrap()});
+            }
+        }
+
+        // Create the filesystem object and return it
         let file = File::open(mainfile_path).ok();
-        Ok(FileSystem{path: path, mainfile: MainFile{file: file}})
+        let mainfile = MainFile{file: file};
+        
+        Ok(FileSystem {path: path, mainfile: mainfile, indices: indices})
     }
 
     /// Gets the mainfile, that is, the main_file_cache.dat2 entry in the folder
