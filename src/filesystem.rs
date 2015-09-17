@@ -46,7 +46,7 @@ pub struct IndexFile {
     file: File
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct IndexEntry {
     id: u32,
     size: u32,
@@ -68,6 +68,22 @@ impl IndexEntry {
 impl IndexFile {
     pub fn last_entry(&self) -> u64 {
          self.file.metadata().unwrap().len() / 6u64
+    }
+
+    pub fn entry(&mut self, id: u32) -> Option<&mut IndexEntry> {
+        let ref mut file = self.file;
+        let mut tmp: [u8; 6] = [0; 6];
+
+        // Seek to the proper position and read into the temp buffer
+        // TODO this must be done safer.. what if it doesn't exist?
+        file.seek(SeekFrom::Start(id as u64 * 6u64));
+        file.read(&mut tmp);
+
+        // Decode the size and offset from the temp buffer
+        let size: u32 = ((tmp[0] as u32) << 16) | ((tmp[1] as u32) << 8) | (tmp[2] as u32);
+        let offset: u64 = ((tmp[3] as u64) << 16) | ((tmp[4] as u64) << 8) | (tmp[5] as u64);
+
+        Some(IndexEntry {id: id, size: size, offset: offset}).as_mut()
     }
 }
 
@@ -123,8 +139,8 @@ impl FileSystem {
 
     /// Gets an index with a specific id if it exists. The index can only exist if the file exists
     /// on the file system.
-    pub fn index(&mut self, index: &mut u32) -> Option<&IndexFile> {
-        self.indices.get(index)
+    pub fn index(&mut self, index: u32) -> Option<&IndexFile> {
+        self.indices.get(&index)
     }
 }
 
