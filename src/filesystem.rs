@@ -196,4 +196,16 @@ impl MainFile {
 
         return Some(data);
     }
+
+    pub fn read_entry(&mut self, entry: IndexEntry) -> Option<&[u8]> {
+        // Create a vec with what we assume is the size. If not, the vec will
+        // perfectly resize itself, so it's only an estimation to help us speed up.
+        let mut data: Vec<i8> = Vec::with_capacity(entry.size() as usize);
+
+        let file = self.file().unwrap();
+
+
+        None
+    }
+
 }
