@@ -28,6 +28,18 @@ impl fmt::Display for FsError {
     }
 }
 
+#[derive(Debug,Clone)]
+pub enum CompressionType {
+    /// The archive is not compressed and the raw data is the real data.
+    None,
+    /// The archive is compressed with the Bzip2 compression algorithm.
+    Bzip2,
+    /// The archive is compressed with (a slightly modified, headerless) Gzip codec.
+    Gzip,
+    /// The archive is compressed with a modified LZMA2 variant (without size field).
+    Lzma
+}
+
 
 #[derive(Debug)]
 pub struct FileSystem {
@@ -53,6 +65,27 @@ pub struct IndexEntry {
     id: u32,
     size: u32,
     offset: u64
+}
+
+#[derive(Debug,Clone)]
+pub struct EntryHeader {
+    entry: IndexEntry,
+    raw_size: u32,
+    real_size: u32,
+    compression: CompressionType
+}
+
+impl CompressionType {
+    /// Fetches the appropriate type of compression based on the header field
+    /// in the archive header.
+    pub fn from_code(code: u8) -> CompressionType {
+        match code {
+            1 => CompressionType::Bzip2,
+            2 => CompressionType::Gzip,
+            3 => CompressionType::Lzma,
+            _ => CompressionType::None
+        }
+    }
 }
 
 impl IndexEntry {
@@ -88,9 +121,19 @@ impl IndexFile {
         let mut tmp: [u8; 6] = [0; 6];
 
         // Seek to the proper position and read into the temp buffer
-        // TODO this must be done safer.. what if it doesn't exist?
-        file.seek(SeekFrom::Start(id as u64 * 6u64));
-        file.read(&mut tmp);
+        let seek_offset = id as u64 * 6u64;
+        let res1 = file.seek(SeekFrom::Start(seek_offset));
+        let res2 = file.read(&mut tmp);
+
+        // Check if the seek and read operation succeeded
+        if res1.is_err() || res2.is_err() {
+            return None;
+        }
+
+        // Check if the operations returned the expected results
+        if res1.unwrap() != seek_offset || res2.unwrap() != 6 {
+            return None;
+        }
 
         // Decode the size and offset from the temp buffer
         let size: u32 = ((tmp[0] as u32) << 16) | ((tmp[1] as u32) << 8) | (tmp[2] as u32);
@@ -197,7 +240,40 @@ impl MainFile {
         return Some(data);
     }
 
+    pub fn read_header(&mut self, entry: IndexEntry) -> Option<EntryHeader> {
+        // Do we have a valid file?
+        if self.file.is_none() {
+            return None;
+        }
+
+        let mut hdr: [u8; 9] = [0; 9];
+        let file = self.file().unwrap();
+
+        // Seek to the right position and read the data, skipping the block header at start
+        let block_header_len = if entry.id() > 0xFFFF { 10 } else { 8 };
+        file.seek(SeekFrom::Start(entry.offset() + block_header_len));
+        file.read(&mut hdr);
+
+        // Parse the 9 bytes of important info
+        let compression_type = hdr[0];
+        let raw_size: u32 = ((hdr[1] as u32) << 24) | ((hdr[2] as u32) << 16) | ((hdr[3] as u32) << 8) | (hdr[4] as u32);
+        let real_size: u32 = ((hdr[5] as u32) << 24) | ((hdr[6] as u32) << 16) | ((hdr[7] as u32) << 8) | (hdr[8] as u32);
+
+        // Return the new entry header
+        return Some(EntryHeader {
+            entry: entry,
+            raw_size: raw_size,
+            real_size: real_size,
+            compression: CompressionType::from_code(compression_type)
+        });
+    }
+
     pub fn read_entry(&mut self, entry: IndexEntry) -> Option<&[u8]> {
+        // Do we have a valid file?
+        if self.file.is_none() {
+            return None;
+        }
+
         // Create a vec with what we assume is the size. If not, the vec will
         // perfectly resize itself, so it's only an estimation to help us speed up.
         let mut data: Vec<i8> = Vec::with_capacity(entry.size() as usize);
