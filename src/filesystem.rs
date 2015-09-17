@@ -43,17 +43,23 @@ pub struct MainFile {
 
 #[derive(Debug)]
 pub struct IndexFile {
+    id: u32,
     file: File
 }
 
 #[derive(Debug,Clone)]
 pub struct IndexEntry {
+    index: u32,
     id: u32,
     size: u32,
     offset: u64
 }
 
 impl IndexEntry {
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
     /// Gets the id of this block.
     pub fn id(&self) -> u32 {
         self.id
@@ -90,7 +96,7 @@ impl IndexFile {
         let size: u32 = ((tmp[0] as u32) << 16) | ((tmp[1] as u32) << 8) | (tmp[2] as u32);
         let offset: u64 = ((tmp[3] as u64) << 16) | ((tmp[4] as u64) << 8) | (tmp[5] as u64);
 
-        Some(IndexEntry {id: id, size: size, offset: offset * 520u64})
+        Some(IndexEntry {index: self.id, id: id, size: size, offset: offset * 520u64})
     }
 }
 
@@ -127,7 +133,7 @@ impl FileSystem {
                 let idx = fname[19..].parse::<u32>().unwrap();
 
                 // Add the index file to our map with indices
-                indices.insert(idx, IndexFile {file: File::open(e.path()).unwrap()});
+                indices.insert(idx, IndexFile {id: idx, file: File::open(e.path()).unwrap()});
             }
         }
 
