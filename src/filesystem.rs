@@ -54,12 +54,19 @@ pub struct IndexEntry {
 }
 
 impl IndexEntry {
+    /// Gets the id of this block.
     pub fn id(&self) -> u32 {
         self.id
     }
+
+    /// Gets the absolute size of the entry data, not counting the 8-10
+    /// byte header in the blocks.
     pub fn size(&self) -> u32 {
         self.size
     }
+
+    /// Gets the absolute offset of the very first 520-byte block of this
+    /// entry in the main data file.
     pub fn offset(&self) -> u64 {
         self.offset
     }
