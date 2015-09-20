@@ -109,6 +109,10 @@ impl IndexEntry {
     pub fn offset(&self) -> u64 {
         self.offset
     }
+
+    pub fn block(&self) -> u32 {
+        (self.offset / 520u64) as u32
+    }
 }
 
 impl IndexFile {
@@ -277,9 +281,15 @@ impl MainFile {
         // Create a vec with what we assume is the size. If not, the vec will
         // perfectly resize itself, so it's only an estimation to help us speed up.
         let mut data: Vec<i8> = Vec::with_capacity(entry.size() as usize);
+        let mut file = self.file().unwrap();
 
-        let file = self.file().unwrap();
+        let mut current_block = entry.block();
+        let mut done = false;
+        while !done {
+            let block_data = self.read_block(current_block);
 
+            done = true;
+        }
 
         None
     }
