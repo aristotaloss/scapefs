@@ -3,19 +3,23 @@ use std::fs::File;
 use std::error::Error;
 use std::fs;
 use std::fmt;
-use std::io::{Seek, Read, SeekFrom};
+use std::io::{Seek, Read, SeekFrom, copy};
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum FsError {
     FileNotFound,
-    InvalidDirectory
+    InvalidDirectory,
+    NoFileHandle,
+    MalformedDataSequence
 }
 impl Error for FsError {
     fn description(&self) -> &str {
         match *self {
             FsError::FileNotFound => "the folder does not exist or cannot be read from",
             FsError::InvalidDirectory => "the specified directory is not a valid directory",
+            FsError::NoFileHandle => "the filesystem did not load a file yet",
+            FsError::MalformedDataSequence => "the data sequence did not complete correctly"
         }
     }
 }
@@ -24,6 +28,8 @@ impl fmt::Display for FsError {
         match *self {
             FsError::FileNotFound => write!(f, "the folder specified could not be found or read from"),
             FsError::InvalidDirectory => write!(f, "the specified directory is not a valid directory"),
+            FsError::NoFileHandle => write!(f, "the filesystem did not load a file yet"),
+            FsError::MalformedDataSequence => write!(f, "the data sequence did not complete correctly")
         }
     }
 }
@@ -61,7 +67,7 @@ pub struct IndexFile {
 
 #[derive(Debug,Clone)]
 pub struct IndexEntry {
-    index: u32,
+    index: u8,
     id: u32,
     size: u32,
     offset: u64
@@ -73,6 +79,16 @@ pub struct EntryHeader {
     raw_size: u32,
     real_size: u32,
     compression: CompressionType
+}
+
+#[derive(Debug,Clone)]
+pub struct BlockHeader {
+    big: bool,
+    entry_id: u32,
+    index_id: u8,
+
+    next_seq: i32,
+    next_block: u32
 }
 
 impl CompressionType {
@@ -88,8 +104,33 @@ impl CompressionType {
     }
 }
 
+impl BlockHeader {
+    pub fn from_block(big: bool, data: [u8; 520]) -> BlockHeader {
+        match big {
+            true => {
+                BlockHeader {
+                    big: true,
+                    entry_id: ((data[0] as u32) << 24) | ((data[1] as u32) << 16) | ((data[2] as u32) << 8) | (data[3] as u32),
+                    next_seq: (((data[4] as u32) << 8) | (data[5] as u32)) as i32,
+                    next_block: ((data[6] as u32) << 16) | ((data[7] as u32) << 8) | (data[8] as u32),
+                    index_id: data[9] as u8
+                }
+            },
+            false => {
+                BlockHeader {
+                    big: false,
+                    entry_id: ((data[0] as u32) << 8) | (data[1] as u32),
+                    next_seq: (((data[2] as u32) << 8) | (data[3] as u32)) as i32,
+                    next_block: ((data[4] as u32) << 16) | ((data[5] as u32) << 8) | (data[6] as u32),
+                    index_id: data[7] as u8
+                }
+            }
+        }
+    }
+}
+
 impl IndexEntry {
-    pub fn index(&self) -> u32 {
+    pub fn index(&self) -> u8 {
         self.index
     }
 
@@ -143,7 +184,7 @@ impl IndexFile {
         let size: u32 = ((tmp[0] as u32) << 16) | ((tmp[1] as u32) << 8) | (tmp[2] as u32);
         let offset: u64 = ((tmp[3] as u64) << 16) | ((tmp[4] as u64) << 8) | (tmp[5] as u64);
 
-        Some(IndexEntry {index: self.id, id: id, size: size, offset: offset * 520u64})
+        Some(IndexEntry {index: self.id as u8, id: id, size: size, offset: offset * 520u64})
     }
 }
 
@@ -272,26 +313,52 @@ impl MainFile {
         });
     }
 
-    pub fn read_entry(&mut self, entry: IndexEntry) -> Option<&[u8]> {
+    pub fn read_entry(&mut self, entry: IndexEntry) -> Result<Vec<i8>, FsError> {
         // Do we have a valid file?
         if self.file.is_none() {
-            return None;
+            return Err(FsError::NoFileHandle);
         }
 
         // Create a vec with what we assume is the size. If not, the vec will
         // perfectly resize itself, so it's only an estimation to help us speed up.
         let mut data: Vec<i8> = Vec::with_capacity(entry.size() as usize);
-        let mut file = self.file().unwrap();
 
         let mut current_block = entry.block();
-        let mut done = false;
-        while !done {
-            let block_data = self.read_block(current_block);
+        let mut remaining = entry.size();
+        let mut current_seq = 0; // We expect a next part to be '1'
 
-            done = true;
+        while remaining > 0 {
+            let block_data = self.read_block(current_block).unwrap();
+            let block_info = BlockHeader::from_block(entry.id() > 65535, block_data);
+
+            let header_size = if block_info.big {10} else {8};
+            let available_data = 520 - header_size;
+            let consumable = if remaining > available_data {available_data} else {remaining};
+            remaining -= consumable;
+
+            // Do some checks to validate this block.
+            if remaining > 0 {
+                if block_info.index_id != entry.index() || block_info.next_seq != current_seq {
+                    return Err(FsError::MalformedDataSequence);
+                } else {
+                    // TODO this is so inefficient I should probably feel bad. Really bad. Terribly bad.
+                    if block_info.big {
+                        for i in block_data[10..520].iter() {
+                            data.push(*i as i8);
+                        }
+                    } else {
+                        for i in block_data[8..520].iter() {
+                            data.push(*i as i8);
+                        }
+                    }
+
+                    current_block += 1;
+                    current_seq += 1;
+                }
+            }
         }
 
-        None
+        Ok(data)
     }
 
 }
