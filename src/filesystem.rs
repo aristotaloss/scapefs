@@ -3,7 +3,7 @@ use std::fs::File;
 use std::error::Error;
 use std::fs;
 use std::fmt;
-use std::io::{Seek, Read, SeekFrom, copy};
+use std::io::{Seek, Read, SeekFrom};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -279,8 +279,8 @@ impl MainFile {
         let file = self.file().unwrap();
 
         // Seek to the right position and read the data
-        file.seek(SeekFrom::Start(block as u64 * 520u64));
-        file.read(&mut data);
+        file.seek(SeekFrom::Start(block as u64 * 520u64)).unwrap();
+        file.read(&mut data).unwrap();
 
         return Some(data);
     }
@@ -296,8 +296,8 @@ impl MainFile {
 
         // Seek to the right position and read the data, skipping the block header at start
         let block_header_len = if entry.id() > 0xFFFF { 10 } else { 8 };
-        file.seek(SeekFrom::Start(entry.offset() + block_header_len));
-        file.read(&mut hdr);
+        file.seek(SeekFrom::Start(entry.offset() + block_header_len)).unwrap();
+        file.read(&mut hdr).unwrap();
 
         // Parse the 9 bytes of important info
         let compression_type = hdr[0];
