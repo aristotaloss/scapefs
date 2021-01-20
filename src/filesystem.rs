@@ -313,7 +313,7 @@ impl MainFile {
         });
     }
 
-    pub fn read_entry(&mut self, entry: IndexEntry) -> Result<Vec<i8>, FsError> {
+    pub fn read_entry(&mut self, entry: IndexEntry) -> Result<Vec<u8>, FsError> {
         // Do we have a valid file?
         if self.file.is_none() {
             return Err(FsError::NoFileHandle);
@@ -321,7 +321,7 @@ impl MainFile {
 
         // Create a vec with what we assume is the size. If not, the vec will
         // perfectly resize itself, so it's only an estimation to help us speed up.
-        let mut data: Vec<i8> = Vec::with_capacity(entry.size() as usize);
+        let mut data: Vec<u8> = Vec::with_capacity(entry.size() as usize);
 
         let mut current_block = entry.block();
         let mut remaining = entry.size();
@@ -344,11 +344,11 @@ impl MainFile {
                     // TODO this is so inefficient I should probably feel bad. Really bad. Terribly bad.
                     if block_info.big {
                         for i in block_data[10..520].iter() {
-                            data.push(*i as i8);
+                            data.push(*i);
                         }
                     } else {
                         for i in block_data[8..520].iter() {
-                            data.push(*i as i8);
+                            data.push(*i);
                         }
                     }
 
