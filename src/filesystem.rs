@@ -6,8 +6,7 @@ use std::fmt;
 use std::io::{Seek, Read, SeekFrom};
 use std::collections::HashMap;
 use flate2::read::GzDecoder;
-use bzip2::Compression;
-use bzip2::read::{BzEncoder, BzDecoder};
+use bzip2::read::BzDecoder;
 
 #[derive(Debug)]
 pub enum FsError {
