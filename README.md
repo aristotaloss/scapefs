@@ -1,2 +1,4 @@
 # scapefs
-Rust RuneScape filesystem interaction library. Project to learn Rust.
+Rust RuneScape filesystem interaction library. Unstable and unfinished.
+
+![Rust](https://github.com/Velocity-/scapefs/workflows/Rust/badge.svg)
