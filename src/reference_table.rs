@@ -212,6 +212,10 @@ impl ReferenceTable {
         }
     }
 
+    pub fn revision(&self) -> u32 {
+        self.revision
+    }
+
     pub fn lookup(&self, id: i32) -> Option<&ReferenceTableFolder> {
         self.entries.get(&id)
     }

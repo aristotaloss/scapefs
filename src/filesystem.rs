@@ -6,6 +6,8 @@ use std::fmt;
 use std::io::{Seek, Read, SeekFrom};
 use std::collections::HashMap;
 use flate2::read::GzDecoder;
+use bzip2::Compression;
+use bzip2::read::{BzEncoder, BzDecoder};
 
 #[derive(Debug)]
 pub enum FsError {
@@ -350,43 +352,38 @@ impl MainFile {
             let available_data = 520 - header_size;
             let consumable = if remaining > available_data {available_data} else {remaining};
 
+            if block_info.big {
+                data.extend(&block_data[10..10+consumable as usize]);
+            } else {
+                data.extend(&block_data[8..8+consumable as usize]);
+            }
+
+            remaining -= consumable;
+
             // Do some checks to validate this block.
             if remaining > 0 {
                 if block_info.index_id != entry.index() || block_info.next_seq != current_seq {
                     return Err(FsError::MalformedDataSequence);
-                } else {
-                    // TODO this is so inefficient I should probably feel bad. Really bad. Terribly bad.
-                    if block_info.big {
-                        for i in block_data[10..520].iter() {
-                            data.push(*i);
-                        }
-                    } else {
-                        for i in block_data[8..520].iter() {
-                            data.push(*i);
-                        }
-                    }
-
-                    current_block += 1;
-                    current_seq += 1;
                 }
             }
 
-            remaining -= consumable;
+            current_block += 1;
+            current_seq += 1;
         }
 
         Ok(data)
     }
 
     pub fn read_decompressed(&mut self, entry: IndexEntry) -> Result<Vec<u8>, FsError> {
-        let data = self.read_entry(entry.clone())?;
+        let mut data = self.read_entry(entry.clone())?;
         let header = self.read_header(entry).unwrap();
 
         match header.compression {
             CompressionType::None => {
-                panic!("Compressionless unsupported")
+                Ok(data[5usize..(header.raw_size+5) as usize].to_vec())
             }
             CompressionType::Gzip => {
-                let mut cursor = std::io::Cursor::new(data);
+                let mut cursor = std::io::Cursor::new(&mut data);
                 cursor.seek(SeekFrom::Current(9)).unwrap();
 
                 let mut decoder = GzDecoder::new(cursor);
@@ -402,7 +399,23 @@ impl MainFile {
                 panic!("Lzma compression unsupported")
             }
             CompressionType::Bzip2 => {
-                panic!("Bzip2 compression unsupported")
+                // Patch the data so that the prefix is present
+                data[5] = b'B';
+                data[6] = b'Z';
+                data[7] = b'h';
+                data[8] = b'1';
+
+                let mut cursor = std::io::Cursor::new(&mut data);
+                cursor.seek(SeekFrom::Current(5)).unwrap();
+
+                let mut decoder = BzDecoder::new(cursor);
+                let mut out = Vec::<u8>::new();
+                out.resize(header.real_size as usize, 0);
+
+                match decoder.read_exact(out.as_mut_slice()) {
+                    Err(_) => return Err(FsError::CorruptedData),
+                    Ok(_) => return Ok(out),
+                }
             }
         }
     }
