@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::ErrorKind, path::PathBuf};
 use std::fs::File;
 use std::error::Error;
 use std::fs;
@@ -35,6 +35,11 @@ impl fmt::Display for FsError {
             FsError::MalformedDataSequence => write!(f, "the data sequence did not complete correctly"),
             FsError::CorruptedData => write!(f, "the data was corrupt"),
         }
+    }
+}
+impl From<FsError> for std::io::Error {
+    fn from(other: FsError) -> std::io::Error {
+        std::io::Error::new(ErrorKind::Other, other)
     }
 }
 
