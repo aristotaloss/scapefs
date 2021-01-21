@@ -3,3 +3,8 @@ name = "scapefs"
 description = "Rust RuneScape filesystem library"
 version = "0.1.0"
 authors = ["Bart Pelle <bart@bartpelle.com>"]
+edition = "2018"
+
+[dependencies]
+byteorder = "1.4.2"
+flate2 = "1.0.19"

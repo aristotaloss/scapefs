@@ -5,13 +5,15 @@ use std::fs;
 use std::fmt;
 use std::io::{Seek, Read, SeekFrom};
 use std::collections::HashMap;
+use flate2::read::GzDecoder;
 
 #[derive(Debug)]
 pub enum FsError {
     FileNotFound,
     InvalidDirectory,
     NoFileHandle,
-    MalformedDataSequence
+    MalformedDataSequence,
+    CorruptedData,
 }
 impl Error for FsError {
     fn description(&self) -> &str {
@@ -19,7 +21,8 @@ impl Error for FsError {
             FsError::FileNotFound => "the folder does not exist or cannot be read from",
             FsError::InvalidDirectory => "the specified directory is not a valid directory",
             FsError::NoFileHandle => "the filesystem did not load a file yet",
-            FsError::MalformedDataSequence => "the data sequence did not complete correctly"
+            FsError::MalformedDataSequence => "the data sequence did not complete correctly",
+            FsError::CorruptedData => "the data was corrupt",
         }
     }
 }
@@ -29,7 +32,8 @@ impl fmt::Display for FsError {
             FsError::FileNotFound => write!(f, "the folder specified could not be found or read from"),
             FsError::InvalidDirectory => write!(f, "the specified directory is not a valid directory"),
             FsError::NoFileHandle => write!(f, "the filesystem did not load a file yet"),
-            FsError::MalformedDataSequence => write!(f, "the data sequence did not complete correctly")
+            FsError::MalformedDataSequence => write!(f, "the data sequence did not complete correctly"),
+            FsError::CorruptedData => write!(f, "the data was corrupt"),
         }
     }
 }
@@ -75,10 +79,27 @@ pub struct IndexEntry {
 
 #[derive(Debug,Clone)]
 pub struct EntryHeader {
-    entry: IndexEntry,
     raw_size: u32,
     real_size: u32,
     compression: CompressionType
+}
+
+impl EntryHeader {
+
+    pub fn from_bytes(bytes: [u8; 9]) -> Result<EntryHeader, std::io::Error> {
+        // Parse the 9 bytes of important info
+        let compression_type = bytes[0];
+        let raw_size: u32 = ((bytes[1] as u32) << 24) | ((bytes[2] as u32) << 16) | ((bytes[3] as u32) << 8) | (bytes[4] as u32);
+        let real_size: u32 = ((bytes[5] as u32) << 24) | ((bytes[6] as u32) << 16) | ((bytes[7] as u32) << 8) | (bytes[8] as u32);
+
+        // Return the new entry header
+        return Ok(EntryHeader {
+            raw_size: raw_size,
+            real_size: real_size,
+            compression: CompressionType::from_code(compression_type)
+        });
+    }
+
 }
 
 #[derive(Debug,Clone)]
@@ -299,18 +320,7 @@ impl MainFile {
         file.seek(SeekFrom::Start(entry.offset() + block_header_len)).unwrap();
         file.read(&mut hdr).unwrap();
 
-        // Parse the 9 bytes of important info
-        let compression_type = hdr[0];
-        let raw_size: u32 = ((hdr[1] as u32) << 24) | ((hdr[2] as u32) << 16) | ((hdr[3] as u32) << 8) | (hdr[4] as u32);
-        let real_size: u32 = ((hdr[5] as u32) << 24) | ((hdr[6] as u32) << 16) | ((hdr[7] as u32) << 8) | (hdr[8] as u32);
-
-        // Return the new entry header
-        return Some(EntryHeader {
-            entry: entry,
-            raw_size: raw_size,
-            real_size: real_size,
-            compression: CompressionType::from_code(compression_type)
-        });
+        return Some(EntryHeader::from_bytes(hdr).unwrap());
     }
 
     pub fn read_entry(&mut self, entry: IndexEntry) -> Result<Vec<u8>, FsError> {
@@ -334,7 +344,6 @@ impl MainFile {
             let header_size = if block_info.big {10} else {8};
             let available_data = 520 - header_size;
             let consumable = if remaining > available_data {available_data} else {remaining};
-            remaining -= consumable;
 
             // Do some checks to validate this block.
             if remaining > 0 {
@@ -356,9 +365,41 @@ impl MainFile {
                     current_seq += 1;
                 }
             }
+
+            remaining -= consumable;
         }
 
         Ok(data)
+    }
+
+    pub fn read_decompressed(&mut self, entry: IndexEntry) -> Result<Vec<u8>, FsError> {
+        let data = self.read_entry(entry.clone())?;
+        let header = self.read_header(entry).unwrap();
+
+        match header.compression {
+            CompressionType::None => {
+                panic!("Compressionless unsupported")
+            }
+            CompressionType::Gzip => {
+                let mut cursor = std::io::Cursor::new(data);
+                cursor.seek(SeekFrom::Current(9)).unwrap();
+
+                let mut decoder = GzDecoder::new(cursor);
+                let mut out = Vec::<u8>::new();
+                out.resize(header.real_size as usize, 0);
+
+                match decoder.read_exact(out.as_mut_slice()) {
+                    Err(_) => return Err(FsError::CorruptedData),
+                    Ok(_) => return Ok(out),
+                }
+            }
+            CompressionType::Lzma => {
+                panic!("Lzma compression unsupported")
+            }
+            CompressionType::Bzip2 => {
+                panic!("Bzip2 compression unsupported")
+            }
+        }
     }
 
 }
